@@ -44,14 +44,6 @@
             <h1 class="text-3xl sm:text-4xl font-bold text-center text-gray-800 mb-2">Jayena Tracker</h1>
             <p class="text-center text-gray-600 mb-6">Registra lo que bebes cada viernes.</p>
 
-            <!-- Selector de fecha -->
-            <div class="mb-6 flex flex-col sm:flex-row items-center justify-between space-y-4 sm:space-y-0 sm:space-x-4">
-                <label for="friday-select" class="font-semibold text-gray-700 w-full sm:w-auto">Selecciona un viernes:</label>
-                <select id="friday-select" class="w-full sm:w-2/3 p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-200 cursor-pointer">
-                    <!-- Las opciones se generarán con JavaScript -->
-                </select>
-            </div>
-
             <!-- Botones de bebidas -->
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
                 <button id="cerveza-btn" class="drink-btn bg-yellow-500 hover:bg-yellow-600">Cerveza</button>
@@ -118,9 +110,6 @@
                 </div>
             </div>
             
-            <!-- Botón para borrar todo el registro de la fecha seleccionada -->
-            <button id="clear-btn" class="w-full mt-6 p-3 rounded-xl bg-red-500 hover:bg-red-600 text-white font-semibold transition-transform transform hover:scale-105 active:scale-95 text-lg">Borrar Registro de este Viernes</button>
-            
         </div>
         
     </div>
@@ -129,7 +118,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // CONFIGURACIÓN DE TU PROYECTO DE FIREBASE
         // Reemplaza los valores de 'apiKey', 'authDomain', etc., con los de tu proyecto.
@@ -151,47 +140,15 @@
         let isAuthReady = false;
 
         const drinks = ['cerveza', 'agua', 'aguacongas', 'gaseosa', 'vino'];
-        const fridaySelect = document.getElementById('friday-select');
-        const clearBtn = document.getElementById('clear-btn');
 
-        // Función para obtener los viernes del año
-        function getFridaysOfYear() {
-            const fridays = [];
+        // Función para obtener la fecha del próximo o actual viernes en formato YYYY-MM-DD
+        function getClosestFriday() {
             const today = new Date();
-            const year = today.getFullYear();
-            let date = new Date(year, today.getMonth(), today.getDate());
-            
-            // Si hoy no es viernes, busca el próximo viernes
-            while (date.getDay() !== 5) {
+            let date = new Date(today);
+            while (date.getDay() !== 5) { // 5 = viernes
                 date.setDate(date.getDate() + 1);
             }
-
-            // Agrega todos los viernes hasta fin de año
-            while (date.getFullYear() === year) {
-                fridays.push(new Date(date));
-                date.setDate(date.getDate() + 7);
-            }
-            return fridays;
-        }
-
-        // Función para renderizar el selector de fechas
-        function renderFridaySelect() {
-            const fridays = getFridaysOfYear();
-            fridaySelect.innerHTML = ''; // Limpiar opciones
-            fridays.forEach(date => {
-                const option = document.createElement('option');
-                const formattedDate = date.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-                option.value = date.toISOString().slice(0, 10);
-                option.textContent = formattedDate;
-                fridaySelect.appendChild(option);
-            });
-            // Seleccionar el viernes más cercano
-            const today = new Date();
-            const closestFriday = fridays.find(d => d >= today) || fridays[fridays.length - 1];
-            if (closestFriday) {
-                fridaySelect.value = closestFriday.toISOString().slice(0, 10);
-                currentFriday = fridaySelect.value;
-            }
+            return date.toISOString().slice(0, 10);
         }
 
         // Función para actualizar la UI con los datos de bebidas
@@ -220,20 +177,15 @@
             }
         }
 
-        // Función para cargar los datos de Firestore
-        function loadDrinks(date) {
+        // Función para cargar los datos de Firestore y escuchar cambios
+        function startListeningForDrinks() {
             if (!userId) {
                 console.error("User not authenticated.");
                 return;
             }
 
-            // Desconectar el listener anterior
-            if (window.unsubscribeSnapshot) {
-                window.unsubscribeSnapshot();
-            }
-
-            const docRef = doc(db, 'artifacts', appId, 'users', userId, 'drinks', date);
-            window.unsubscribeSnapshot = onSnapshot(docRef, (docSnap) => {
+            const docRef = doc(db, 'artifacts', appId, 'users', userId, 'drinks', currentFriday);
+            onSnapshot(docRef, (docSnap) => {
                 if (docSnap.exists()) {
                     currentDrinks = docSnap.data();
                     console.log("Document data:", currentDrinks);
@@ -276,26 +228,9 @@
             }
         }
 
-        // Funcionalidad del botón de borrado
-        clearBtn.addEventListener('click', async () => {
-            if (!userId || !currentFriday) {
-                console.error("No hay usuario o fecha seleccionada.");
-                return;
-            }
-            try {
-                const docRef = doc(db, 'artifacts', appId, 'users', userId, 'drinks', currentFriday);
-                await deleteDoc(docRef);
-                currentDrinks = {};
-                updateUI();
-                console.log("Registro eliminado correctamente.");
-            } catch (e) {
-                console.error("Error al eliminar el documento: ", e);
-            }
-        });
-
         // Inicialización de la aplicación
         window.onload = function() {
-            renderFridaySelect();
+            currentFriday = getClosestFriday();
             try {
                 const app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
@@ -310,8 +245,7 @@
                         console.log("Usuario autenticado:", userId);
                         loader.classList.add('hidden');
                         mainContent.classList.remove('hidden');
-                        // Cargar los datos del viernes seleccionado
-                        loadDrinks(fridaySelect.value);
+                        startListeningForDrinks();
                     } else {
                         try {
                              // Autenticación anónima para que la aplicación funcione en cualquier servidor
@@ -324,13 +258,6 @@
                     }
                 });
 
-                fridaySelect.addEventListener('change', (e) => {
-                    if (isAuthReady) {
-                        currentFriday = e.target.value;
-                        loadDrinks(currentFriday);
-                    }
-                });
-
                 setupDrinkButtons();
             } catch(e) {
                 console.error("Error al inicializar Firebase. Asegúrate de que tu configuración es correcta: ", e);
@@ -338,9 +265,6 @@
                 loader.innerHTML = `<p class="text-red-500 font-semibold text-center">Error al cargar la aplicación. Por favor, revisa la configuración de Firebase en el código.</p>`;
             }
         };
-
     </script>
 </body>
 </html>
-
-
