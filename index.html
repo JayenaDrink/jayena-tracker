@@ -117,7 +117,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // CONFIGURACIÓN DE TU PROYECTO DE FIREBASE
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
@@ -160,34 +160,34 @@
             });
         }
         
-        // Función para guardar los datos en Firestore (ahora con incremento)
-        async function saveDrinks(drink, value) {
-            if (!isAuthReady) {
-                 console.error("User not authenticated.");
-                 return;
-             }
+        // Función para guardar los datos en Firestore
+        async function saveDrinks() {
+            if (!userId) {
+                console.error("User not authenticated.");
+                return;
+            }
             try {
-                 const publicDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'drinks', currentFriday);
-                 await setDoc(publicDocRef, { [drink]: increment(value) }, { merge: true });
-                 console.log("Drinks saved successfully in public space.");
-             } catch (e) {
-                 console.error("Error saving document: ", e);
-             }
-         }
-
+                const userDocRef = doc(db, 'artifacts', appId, 'users', userId);
+                const fridayDocRef = doc(userDocRef, 'drinks', currentFriday);
+                await setDoc(fridayDocRef, currentDrinks, { merge: true });
+                console.log("Drinks saved successfully.");
+            } catch (e) {
+                console.error("Error saving document: ", e);
+            }
+        }
 
         // Función para cargar los datos de Firestore y escuchar cambios
         function startListeningForDrinks() {
-            if (!isAuthReady) {
+            if (!userId) {
                 console.error("User not authenticated.");
                 return;
             }
 
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'drinks', currentFriday);
+            const docRef = doc(db, 'artifacts', appId, 'users', userId, 'drinks', currentFriday);
             onSnapshot(docRef, (docSnap) => {
                 if (docSnap.exists()) {
                     currentDrinks = docSnap.data();
-                    console.log("Document data from public space:", currentDrinks);
+                    console.log("Document data:", currentDrinks);
                 } else {
                     currentDrinks = {};
                     console.log("No such document! Initializing...");
@@ -204,7 +204,9 @@
                 const btn = document.getElementById(`${drink}-btn`);
                 if (btn) {
                     btn.addEventListener('click', () => {
-                        saveDrinks(drink, 1);
+                        currentDrinks[drink] = (currentDrinks[drink] || 0) + 1;
+                        updateUI();
+                        saveDrinks();
                     });
                 }
             });
@@ -212,12 +214,16 @@
         
         // Funciones para los botones de suma y resta
         window.increment = function(drink) {
-            saveDrinks(drink, 1);
+            currentDrinks[drink] = (currentDrinks[drink] || 0) + 1;
+            updateUI();
+            saveDrinks();
         }
 
         window.decrement = function(drink) {
             if ((currentDrinks[drink] || 0) > 0) {
-                saveDrinks(drink, -1);
+                currentDrinks[drink] -= 1;
+                updateUI();
+                saveDrinks();
             }
         }
 
@@ -264,4 +270,3 @@
     </script>
 </body>
 </html>
-v1.01
