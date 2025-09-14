@@ -117,7 +117,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // CONFIGURACIÓN DE TU PROYECTO DE FIREBASE
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
@@ -160,15 +160,15 @@
             });
         }
         
-        // Función para guardar los datos en Firestore
-        async function saveDrinks() {
+        // Función para guardar los datos en Firestore (ahora con incremento)
+        async function saveDrinks(drink, value) {
             if (!isAuthReady) {
                  console.error("User not authenticated.");
                  return;
              }
             try {
                  const publicDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'drinks', currentFriday);
-                 await setDoc(publicDocRef, currentDrinks, { merge: true });
+                 await setDoc(publicDocRef, { [drink]: increment(value) }, { merge: true });
                  console.log("Drinks saved successfully in public space.");
              } catch (e) {
                  console.error("Error saving document: ", e);
@@ -204,9 +204,7 @@
                 const btn = document.getElementById(`${drink}-btn`);
                 if (btn) {
                     btn.addEventListener('click', () => {
-                        currentDrinks[drink] = (currentDrinks[drink] || 0) + 1;
-                        updateUI();
-                        saveDrinks();
+                        saveDrinks(drink, 1);
                     });
                 }
             });
@@ -214,16 +212,12 @@
         
         // Funciones para los botones de suma y resta
         window.increment = function(drink) {
-            currentDrinks[drink] = (currentDrinks[drink] || 0) + 1;
-            updateUI();
-            saveDrinks();
+            saveDrinks(drink, 1);
         }
 
         window.decrement = function(drink) {
             if ((currentDrinks[drink] || 0) > 0) {
-                currentDrinks[drink] -= 1;
-                updateUI();
-                saveDrinks();
+                saveDrinks(drink, -1);
             }
         }
 
@@ -270,4 +264,4 @@
     </script>
 </body>
 </html>
-
+v1.01
