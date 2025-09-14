@@ -162,32 +162,32 @@
         
         // Función para guardar los datos en Firestore
         async function saveDrinks() {
-            if (!userId) {
-                console.error("User not authenticated.");
-                return;
-            }
+            if (!isAuthReady) {
+                 console.error("User not authenticated.");
+                 return;
+             }
             try {
-                const userDocRef = doc(db, 'artifacts', appId, 'users', userId);
-                const fridayDocRef = doc(userDocRef, 'drinks', currentFriday);
-                await setDoc(fridayDocRef, currentDrinks, { merge: true });
-                console.log("Drinks saved successfully.");
-            } catch (e) {
-                console.error("Error saving document: ", e);
-            }
-        }
+                 const publicDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'drinks', currentFriday);
+                 await setDoc(publicDocRef, currentDrinks, { merge: true });
+                 console.log("Drinks saved successfully in public space.");
+             } catch (e) {
+                 console.error("Error saving document: ", e);
+             }
+         }
+
 
         // Función para cargar los datos de Firestore y escuchar cambios
         function startListeningForDrinks() {
-            if (!userId) {
+            if (!isAuthReady) {
                 console.error("User not authenticated.");
                 return;
             }
 
-            const docRef = doc(db, 'artifacts', appId, 'users', userId, 'drinks', currentFriday);
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'drinks', currentFriday);
             onSnapshot(docRef, (docSnap) => {
                 if (docSnap.exists()) {
                     currentDrinks = docSnap.data();
-                    console.log("Document data:", currentDrinks);
+                    console.log("Document data from public space:", currentDrinks);
                 } else {
                     currentDrinks = {};
                     console.log("No such document! Initializing...");
@@ -270,3 +270,4 @@
     </script>
 </body>
 </html>
+
