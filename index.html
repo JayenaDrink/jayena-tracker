@@ -108,16 +108,59 @@
                     </div>
                 </div>
             </div>
-            
+            <div id="subtotal-card" class="bg-gray-50 p-4 sm:p-6 rounded-xl border border-gray-200 mt-4">
+                <h2 class="text-xl font-bold text-gray-800 mb-2">Subtotal Consolidado</h2>
+                <div class="text-center">
+                    <span id="subtotal-amount" class="text-3xl font-bold text-gray-900">0.00 €</span>
+                </div>
+            </div>
+            <!-- Sección para el número de personas y el total por persona -->
+            <div id="per-person-card" class="bg-gray-50 p-4 sm:p-6 rounded-xl border border-gray-200 mt-4">
+                <div class="flex justify-between items-center mb-4">
+                    <label for="num-people-select" class="text-gray-700 font-medium">Número de personas</label>
+                    <select id="num-people-select" class="form-select rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                        <option value="6">6</option>
+                        <option value="7">7</option>
+                        <option value="8">8</option>
+                        <option value="9">9</option>
+                    </select>
+                </div>
+                <div class="text-center">
+                    <h2 class="text-xl font-bold text-gray-800 mb-2">Total por persona</h2>
+                    <span id="total-per-person-amount" class="text-3xl font-bold text-gray-900">0.00 €</span>
+                </div>
+            </div>
+            <!-- Nueva sección para multiplicar el total por persona -->
+            <div id="final-total-card" class="bg-gray-50 p-4 sm:p-6 rounded-xl border border-gray-200 mt-4">
+                <div class="flex justify-between items-center mb-4">
+                    <label for="multiplier-select" class="text-gray-700 font-medium">Multiplicar por:</label>
+                    <select id="multiplier-select" class="form-select rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                        <option value="1">1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                    </select>
+                </div>
+                <div class="text-center">
+                    <h2 class="text-xl font-bold text-gray-800 mb-2">Total final</h2>
+                    <span id="final-total-amount" class="text-3xl font-bold text-gray-900">0.00 €</span>
+                </div>
+            </div>
+            <div id="status-message" class="text-center mt-4 text-sm"></div>
         </div>
-        
     </div>
 
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         // CONFIGURACIÓN DE TU PROYECTO DE FIREBASE
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
@@ -137,8 +180,23 @@
         let currentDrinks = {};
         let currentFriday;
         let isAuthReady = false;
+        let currentSubtotal = 0;
+        let totalPerPerson = 0;
 
         const drinks = ['cerveza', 'agua', 'aguacongas', 'gaseosa', 'vino'];
+        const prices = {
+            'cerveza': 1.90,
+            'agua': 1.90,
+            'aguacongas': 2.10,
+            'gaseosa': 2.10,
+            'vino': 2.10
+        };
+        const statusEl = document.getElementById('status-message');
+        const subtotalEl = document.getElementById('subtotal-amount');
+        const totalPerPersonEl = document.getElementById('total-per-person-amount');
+        const numPeopleSelect = document.getElementById('num-people-select');
+        const multiplierSelect = document.getElementById('multiplier-select');
+        const finalTotalEl = document.getElementById('final-total-amount');
 
         // Función para obtener la fecha del próximo o actual viernes en formato YYYY-MM-DD
         function getClosestFriday() {
@@ -152,49 +210,84 @@
 
         // Función para actualizar la UI con los datos de bebidas
         function updateUI() {
+            currentSubtotal = 0;
             drinks.forEach(drink => {
+                const count = currentDrinks[drink] || 0;
                 const countElement = document.getElementById(`${drink}-count`);
                 if (countElement) {
-                    countElement.textContent = currentDrinks[drink] || 0;
+                    countElement.textContent = count;
                 }
+                currentSubtotal += count * prices[drink];
             });
+            subtotalEl.textContent = `${currentSubtotal.toFixed(2)} €`;
+            calculateTotalPerPerson();
+        }
+
+        // Función para calcular y mostrar el total por persona
+        function calculateTotalPerPerson() {
+            const numPeople = parseInt(numPeopleSelect.value);
+            if (numPeople > 0) {
+                totalPerPerson = currentSubtotal / numPeople;
+                totalPerPersonEl.textContent = `${totalPerPerson.toFixed(2)} €`;
+            } else {
+                totalPerPerson = 0;
+                totalPerPersonEl.textContent = `0.00 €`;
+            }
+            calculateFinalTotal();
+        }
+
+        // Función para calcular y mostrar el total final
+        function calculateFinalTotal() {
+            const multiplier = parseInt(multiplierSelect.value);
+            const finalTotal = totalPerPerson * multiplier;
+            finalTotalEl.textContent = `${finalTotal.toFixed(2)} €`;
         }
         
-        // Función para guardar los datos en Firestore
-        async function saveDrinks() {
-            if (!userId) {
-                console.error("User not authenticated.");
-                return;
-            }
-            try {
-                const userDocRef = doc(db, 'artifacts', appId, 'users', userId);
-                const fridayDocRef = doc(userDocRef, 'drinks', currentFriday);
-                await setDoc(fridayDocRef, currentDrinks, { merge: true });
-                console.log("Drinks saved successfully.");
-            } catch (e) {
-                console.error("Error saving document: ", e);
-            }
+        // Función para actualizar el estado en el UI
+        function updateStatus(message, color = 'text-gray-500') {
+            statusEl.textContent = message;
+            statusEl.className = `text-center mt-4 text-sm ${color}`;
         }
+        
+        // Función para guardar los datos en Firestore (ahora con incremento)
+        async function saveDrinks(drink, value) {
+            if (!isAuthReady) {
+                 updateStatus('Error: Usuario no autenticado para escribir.', 'text-red-500');
+                 return;
+             }
+            try {
+                 const publicDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'drinks', currentFriday);
+                 await setDoc(publicDocRef, { [drink]: increment(value) }, { merge: true });
+                 console.log("Drinks saved successfully in public space.");
+             } catch (e) {
+                 console.error("Error saving document: ", e);
+                 updateStatus('Error al guardar datos. Revisa las reglas de seguridad de Firestore.', 'text-red-500');
+             }
+         }
+
 
         // Función para cargar los datos de Firestore y escuchar cambios
         function startListeningForDrinks() {
-            if (!userId) {
-                console.error("User not authenticated.");
+            if (!isAuthReady) {
+                updateStatus('Error: Usuario no autenticado para leer.', 'text-red-500');
                 return;
             }
 
-            const docRef = doc(db, 'artifacts', appId, 'users', userId, 'drinks', currentFriday);
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'drinks', currentFriday);
             onSnapshot(docRef, (docSnap) => {
                 if (docSnap.exists()) {
                     currentDrinks = docSnap.data();
-                    console.log("Document data:", currentDrinks);
+                    console.log("Document data from public space:", currentDrinks);
+                    updateStatus('Conectado y actualizando en tiempo real.', 'text-green-500');
                 } else {
                     currentDrinks = {};
                     console.log("No such document! Initializing...");
+                    updateStatus('Documento no encontrado. Inicializando.', 'text-yellow-500');
                 }
                 updateUI();
             }, (error) => {
                 console.error("Error getting document:", error);
+                updateStatus('Error al leer datos. Revisa las reglas de seguridad.', 'text-red-500');
             });
         }
         
@@ -204,9 +297,7 @@
                 const btn = document.getElementById(`${drink}-btn`);
                 if (btn) {
                     btn.addEventListener('click', () => {
-                        currentDrinks[drink] = (currentDrinks[drink] || 0) + 1;
-                        updateUI();
-                        saveDrinks();
+                        saveDrinks(drink, 1);
                     });
                 }
             });
@@ -214,16 +305,12 @@
         
         // Funciones para los botones de suma y resta
         window.increment = function(drink) {
-            currentDrinks[drink] = (currentDrinks[drink] || 0) + 1;
-            updateUI();
-            saveDrinks();
+            saveDrinks(drink, 1);
         }
 
         window.decrement = function(drink) {
             if ((currentDrinks[drink] || 0) > 0) {
-                currentDrinks[drink] -= 1;
-                updateUI();
-                saveDrinks();
+                saveDrinks(drink, -1);
             }
         }
 
@@ -235,6 +322,9 @@
                 auth = getAuth(app);
                 db = getFirestore(app);
             
+                numPeopleSelect.addEventListener('change', calculateTotalPerPerson);
+                multiplierSelect.addEventListener('change', calculateFinalTotal);
+
                 onAuthStateChanged(auth, async (user) => {
                     const loader = document.getElementById('loader');
                     const mainContent = document.getElementById('main-content');
@@ -256,6 +346,7 @@
                             console.error("Falló la autenticación:", error);
                             loader.classList.add('hidden');
                             mainContent.classList.remove('hidden');
+                            updateStatus('Falló la autenticación. Revisa la configuración.', 'text-red-500');
                         }
                     }
                 });
@@ -270,3 +361,4 @@
     </script>
 </body>
 </html>
+v1.05
