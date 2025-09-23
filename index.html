@@ -299,11 +299,6 @@
         window.onload = function() {
             currentFriday = getClosestFriday();
             try {
-                // Validación para asegurar que la configuración de Firebase no esté vacía.
-                if (Object.keys(firebaseConfig).length === 0 || !firebaseConfig.apiKey) {
-                    throw new Error("API key is not available in the Firebase configuration.");
-                }
-                
                 const app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
@@ -348,4 +343,4 @@
         };
     </script>
 </body>
-</html> 
+</html>
