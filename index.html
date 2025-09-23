@@ -294,19 +294,37 @@
                 saveDrinks(drink, -1);
             }
         }
+        
+        // Función para mostrar errores de inicialización en la UI
+        function showError(message) {
+            const loader = document.getElementById('loader');
+            loader.innerHTML = `<p class="text-red-500 font-semibold text-center">${message}</p>`;
+            document.getElementById('main-content').classList.add('hidden');
+        }
 
-        // Inicialización de la aplicación
-        window.onload = function() {
+        // Inicialización de la aplicación y autenticación
+        window.onload = async function() {
             currentFriday = getClosestFriday();
             try {
                 const app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
-            
-                numPeopleSelect.addEventListener('change', calculateTotalPerPerson);
-                multiplierSelect.addEventListener('change', calculateFinalTotal);
 
-                onAuthStateChanged(auth, async (user) => {
+                // Intenta autenticación con token personalizado si está disponible
+                if (initialAuthToken) {
+                    try {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                    } catch (error) {
+                        console.warn("Falló la autenticación con token personalizado, intentando con autenticación anónima.", error);
+                        // El error de invalid-api-key ocurrirá aquí
+                        await signInAnonymously(auth);
+                    }
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+                // Escucha los cambios de estado de autenticación para inicializar la UI
+                onAuthStateChanged(auth, (user) => {
                     const loader = document.getElementById('loader');
                     const mainContent = document.getElementById('main-content');
                     if (user) {
@@ -317,28 +335,17 @@
                         mainContent.classList.remove('hidden');
                         startListeningForDrinks();
                     } else {
-                        try {
-                             if (initialAuthToken) {
-                                await signInWithCustomToken(auth, initialAuthToken);
-                             } else {
-                                await signInAnonymously(auth);
-                             }
-                        } catch (error) {
-                            console.error("Falló la autenticación:", error);
-                            loader.classList.add('hidden');
-                            mainContent.classList.remove('hidden');
-                            updateStatus('Falló la autenticación. Revisa la configuración.', 'text-red-500');
-                        }
+                        showError('Falló la autenticación. Por favor, revisa tu configuración de Firebase y las reglas de seguridad.');
                     }
                 });
 
+                numPeopleSelect.addEventListener('change', calculateTotalPerPerson);
+                multiplierSelect.addEventListener('change', calculateFinalTotal);
                 setupDrinkButtons();
+
             } catch(e) {
-                // Aquí se agregó un registro más detallado para ayudar a la depuración
-                console.error("Error al inicializar Firebase. Asegúrate de que tu configuración es correcta: ", e);
-                console.error("Configuración de Firebase recibida:", firebaseConfig);
-                const loader = document.getElementById('loader');
-                loader.innerHTML = `<p class="text-red-500 font-semibold text-center">Error al cargar la aplicación. Por favor, revisa la configuración de Firebase en el código. Detalles: ${e.message}</p>`;
+                console.error("Error al inicializar Firebase: ", e);
+                showError(`Error al cargar la aplicación. Detalles: ${e.message}`);
             }
         };
     </script>
