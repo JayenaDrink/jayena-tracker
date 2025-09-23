@@ -299,6 +299,11 @@
         window.onload = function() {
             currentFriday = getClosestFriday();
             try {
+                // Ensure firebaseConfig is not empty
+                if (!firebaseConfig.apiKey) {
+                    throw new Error("API key is not available in the Firebase configuration.");
+                }
+                
                 const app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
