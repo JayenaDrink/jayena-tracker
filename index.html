@@ -31,15 +31,7 @@
     <img src="https://dynamic-media-cdn.tripadvisor.com/media/photo-o/0a/6a/bc/5d/jayena.jpg?w=700&h=400&s=1" alt="Cafetería de Jayena, Spain" class="absolute top-4 right-4 rounded-full h-20 w-20 object-cover shadow-lg">
 
     <div id="app" class="container-card w-full p-6 sm:p-8">
-        <div id="loader" class="flex flex-col items-center justify-center space-y-4">
-            <svg class="animate-spin -ml-1 mr-3 h-10 w-10 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            <p class="text-gray-500 font-semibold">Cargando...</p>
-        </div>
-
-        <div id="main-content" class="hidden">
+        <div id="main-content">
             <h1 class="text-3xl sm:text-4xl font-bold text-center text-gray-800 mb-2">Jayena Tracker</h1>
             <p class="text-center text-gray-600 mb-6">Registra lo que bebes cada viernes.</p>
 
@@ -142,25 +134,17 @@
                     <span id="final-total-amount" class="text-3xl font-bold text-gray-900">0.00 €</span>
                 </div>
             </div>
-            <div id="status-message" class="text-center mt-4 text-sm"></div>
         </div>
     </div>
 
-    <!-- Firebase SDK -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot, increment } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        
-        // La configuración de Firebase y el token de autenticación se proporcionan automáticamente por la plataforma.
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        let db, auth, userId;
-        let currentDrinks = {};
-        let currentFriday;
-        let isAuthReady = false;
+    <script type="text/javascript">
+        let currentDrinks = {
+            'cerveza': 0,
+            'agua': 0,
+            'aguacongas': 0,
+            'gaseosa': 0,
+            'vino': 0
+        };
         let currentSubtotal = 0;
         let totalPerPerson = 0;
 
@@ -172,22 +156,12 @@
             'gaseosa': 2.10,
             'vino': 2.10
         };
-        const statusEl = document.getElementById('status-message');
+
         const subtotalEl = document.getElementById('subtotal-amount');
         const totalPerPersonEl = document.getElementById('total-per-person-amount');
         const numPeopleSelect = document.getElementById('num-people-select');
         const multiplierSelect = document.getElementById('multiplier-select');
         const finalTotalEl = document.getElementById('final-total-amount');
-
-        // Función para obtener la fecha del próximo o actual viernes en formato YYYY-MM-DD
-        function getClosestFriday() {
-            const today = new Date();
-            let date = new Date(today);
-            while (date.getDay() !== 5) { // 5 = viernes
-                date.setDate(date.getDate() + 1);
-            }
-            return date.toISOString().slice(0, 10);
-        }
 
         // Función para actualizar la UI con los datos de bebidas
         function updateUI() {
@@ -224,61 +198,22 @@
             finalTotalEl.textContent = `${finalTotal.toFixed(2)} €`;
         }
         
-        // Función para actualizar el estado en el UI
-        function updateStatus(message, color = 'text-gray-500') {
-            statusEl.textContent = message;
-            statusEl.className = `text-center mt-4 text-sm ${color}`;
-        }
-        
-        // Función para guardar los datos en Firestore (ahora con incremento)
-        async function saveDrinks(drink, value) {
-            if (!isAuthReady) {
-                 updateStatus('Error: Usuario no autenticado para escribir.', 'text-red-500');
-                 return;
-             }
-            try {
-                 const publicDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'drinks', currentFriday);
-                 await setDoc(publicDocRef, { [drink]: increment(value) }, { merge: true });
-                 console.log("Drinks saved successfully in public space.");
-             } catch (e) {
-                 console.error("Error saving document: ", e);
-                 updateStatus('Error al guardar datos. Revisa las reglas de seguridad de Firestore.', 'text-red-500');
-             }
-         }
-
-
-        // Función para cargar los datos de Firestore y escuchar cambios
-        function startListeningForDrinks() {
-            if (!isAuthReady) {
-                updateStatus('Error: Usuario no autenticado para leer.', 'text-red-500');
-                return;
+        // Función para guardar los datos localmente
+        function updateDrinks(drink, value) {
+            currentDrinks[drink] = (currentDrinks[drink] || 0) + value;
+            if (currentDrinks[drink] < 0) {
+                currentDrinks[drink] = 0;
             }
-
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'drinks', currentFriday);
-            onSnapshot(docRef, (docSnap) => {
-                if (docSnap.exists()) {
-                    currentDrinks = docSnap.data();
-                    console.log("Document data from public space:", currentDrinks);
-                    updateStatus('Conectado y actualizando en tiempo real.', 'text-green-500');
-                } else {
-                    currentDrinks = {};
-                    console.log("No such document! Initializing...");
-                    updateStatus('Documento no encontrado. Inicializando.', 'text-yellow-500');
-                }
-                updateUI();
-            }, (error) => {
-                console.error("Error getting document:", error);
-                updateStatus('Error al leer datos. Revisa las reglas de seguridad.', 'text-red-500');
-            });
+            updateUI();
         }
-        
+
         // Manejadores de eventos para los botones de bebidas
         function setupDrinkButtons() {
             drinks.forEach(drink => {
                 const btn = document.getElementById(`${drink}-btn`);
                 if (btn) {
                     btn.addEventListener('click', () => {
-                        saveDrinks(drink, 1);
+                        updateDrinks(drink, 1);
                     });
                 }
             });
@@ -286,67 +221,19 @@
         
         // Funciones para los botones de suma y resta
         window.increment = function(drink) {
-            saveDrinks(drink, 1);
+            updateDrinks(drink, 1);
         }
 
         window.decrement = function(drink) {
-            if ((currentDrinks[drink] || 0) > 0) {
-                saveDrinks(drink, -1);
-            }
-        }
-        
-        // Función para mostrar errores de inicialización en la UI
-        function showError(message) {
-            const loader = document.getElementById('loader');
-            loader.innerHTML = `<p class="text-red-500 font-semibold text-center">${message}</p>`;
-            document.getElementById('main-content').classList.add('hidden');
+            updateDrinks(drink, -1);
         }
 
-        // Inicialización de la aplicación y autenticación
-        window.onload = async function() {
-            currentFriday = getClosestFriday();
-            try {
-                const app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-
-                // Intenta autenticación con token personalizado si está disponible
-                if (initialAuthToken) {
-                    try {
-                        await signInWithCustomToken(auth, initialAuthToken);
-                    } catch (error) {
-                        console.warn("Falló la autenticación con token personalizado, intentando con autenticación anónima.", error);
-                        // El error de invalid-api-key ocurrirá aquí
-                        await signInAnonymously(auth);
-                    }
-                } else {
-                    await signInAnonymously(auth);
-                }
-
-                // Escucha los cambios de estado de autenticación para inicializar la UI
-                onAuthStateChanged(auth, (user) => {
-                    const loader = document.getElementById('loader');
-                    const mainContent = document.getElementById('main-content');
-                    if (user) {
-                        userId = user.uid;
-                        isAuthReady = true;
-                        console.log("Usuario autenticado:", userId);
-                        loader.classList.add('hidden');
-                        mainContent.classList.remove('hidden');
-                        startListeningForDrinks();
-                    } else {
-                        showError('Falló la autenticación. Por favor, revisa tu configuración de Firebase y las reglas de seguridad.');
-                    }
-                });
-
-                numPeopleSelect.addEventListener('change', calculateTotalPerPerson);
-                multiplierSelect.addEventListener('change', calculateFinalTotal);
-                setupDrinkButtons();
-
-            } catch(e) {
-                console.error("Error al inicializar Firebase: ", e);
-                showError(`Error al cargar la aplicación. Detalles: ${e.message}`);
-            }
+        // Inicialización de la aplicación
+        window.onload = function() {
+            numPeopleSelect.addEventListener('change', calculateTotalPerPerson);
+            multiplierSelect.addEventListener('change', calculateFinalTotal);
+            setupDrinkButtons();
+            updateUI();
         };
     </script>
 </body>
