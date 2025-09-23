@@ -334,9 +334,11 @@
 
                 setupDrinkButtons();
             } catch(e) {
+                // Aquí se agregó un registro más detallado para ayudar a la depuración
                 console.error("Error al inicializar Firebase. Asegúrate de que tu configuración es correcta: ", e);
+                console.error("Configuración de Firebase recibida:", firebaseConfig);
                 const loader = document.getElementById('loader');
-                loader.innerHTML = `<p class="text-red-500 font-semibold text-center">Error al cargar la aplicación. Por favor, revisa la configuración de Firebase en el código.</p>`;
+                loader.innerHTML = `<p class="text-red-500 font-semibold text-center">Error al cargar la aplicación. Por favor, revisa la configuración de Firebase en el código. Detalles: ${e.message}</p>`;
             }
         };
     </script>
